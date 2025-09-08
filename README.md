@@ -1,0 +1,2 @@
+# StudyAssistant
+MCP Hackathon Submisssion
