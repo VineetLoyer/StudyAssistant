@@ -1,0 +1,236 @@
+openapi: 3.0.3
+info:
+  title: Study MCP
+  version: "1.0.0"
+servers:
+  - url: https://patents-blank-drawings-pace.trycloudflare.com    # replace later inside Cequence or ignore
+paths:
+  /health:
+    get:
+      summary: Health
+      operationId: health
+      responses:
+        "200":
+          description: OK
+
+  /whoami:
+    get:
+      summary: Whoami
+      operationId: whoami
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /mcp/tools/load_material:
+    post:
+      summary: Load Material
+      operationId: load_material
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadMaterialRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoadMaterialResponse"
+
+  /mcp/tools/answer_question:
+    post:
+      summary: Answer Question
+      operationId: answer_question
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswerQuestionRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnswerQuestionResponse"
+
+  /mcp/tools/make_notes:
+    post:
+      summary: Make Notes
+      operationId: make_notes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MakeNotesRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MakeNotesResponse"
+
+  /mcp/tools/generate_quiz:
+    post:
+      summary: Generate Quiz
+      operationId: generate_quiz
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateQuizRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateQuizResponse"
+
+  /mcp/tools/schedule_quiz:
+    post:
+      summary: Schedule Quiz
+      operationId: schedule_quiz
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleQuizRequest"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleQuizResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoadMaterialRequest:
+      type: object
+      properties:
+        file_id: { type: string, description: Arbitrary ID }
+        type:    { type: string, enum: [pdf, pptx, docx] }
+        range:   { type: string, description: 'e.g., "slides 1-5" or "pages 3-10"' }
+        local_path: { type: string, nullable: true }
+      required: [file_id, type, range]
+
+    LoadMaterialResponse:
+      type: object
+      properties:
+        corpus_id:       { type: string }
+        chunks_indexed:  { type: integer }
+        sources:
+          type: array
+          items: { type: string }
+      required: [corpus_id, chunks_indexed, sources]
+
+    AnswerQuestionRequest:
+      type: object
+      properties:
+        corpus_id: { type: string }
+        query:     { type: string }
+        top_k:     { type: integer, default: 5 }
+      required: [corpus_id, query]
+
+    AnswerQuestionResponse:
+      type: object
+      properties:
+        answer: { type: string }
+        citations:
+          type: array
+          items:
+            type: object
+            properties:
+              source_id: { type: string }
+              excerpt:   { type: string }
+
+    MakeNotesRequest:
+      type: object
+      properties:
+        corpus_id:  { type: string }
+        style:      { type: string, enum: [concise, exam, lecture], default: concise }
+        export_pdf: { type: boolean, default: true }
+      required: [corpus_id]
+
+    MakeNotesResponse:
+      type: object
+      properties:
+        notes_md: { type: string }
+        pdf_url:  { type: string, nullable: true }
+
+    GenerateQuizRequest:
+      type: object
+      properties:
+        corpus_id: { type: string }
+        duration:  { type: integer, default: 10 }
+        items:     { type: integer, default: 10 }
+        focus:
+          type: array
+          items: { type: string }
+          default: [definitions, concepts, derivations]
+      required: [corpus_id]
+
+    GenerateQuizResponse:
+      type: object
+      properties:
+        quiz_id: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:    { type: string }
+              stem:    { type: string }
+              choices: { type: array, items: { type: string }, nullable: true }
+              answer:  { type: string, nullable: true }
+
+    ScheduleQuizRequest:
+      type: object
+      properties:
+        quiz_id: { type: string }
+        plan:
+          type: object
+          properties:
+            mode:     { type: string, enum: [once, spaced] }
+            end_date: { type: string, nullable: true }
+            days:
+              type: array
+              items: { type: string }
+              nullable: true
+            window:   { type: string, nullable: true }
+          required: [mode]
+        title:   { type: string, default: "Pop Quiz" }
+        tz:      { type: string, default: "America/Los_Angeles" }
+        confirm: { type: boolean, default: false }
+      required: [quiz_id, plan]
+
+    ScheduleQuizResponse:
+      type: object
+      properties:
+        ics_url: { type: string }

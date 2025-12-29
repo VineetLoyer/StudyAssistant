@@ -1,0 +1,103 @@
+service:
+  name: study-mcp
+  # IMPORTANT: app is on the HOST, so from inside Docker use host.docker.internal
+  upstream: http://host.docker.internal:8000
+
+security:
+  auth:
+    jwt:
+      # Descope validation via JWKS (no audience for now)
+      issuer: https://api.descope.com/
+      jwks_url: https://api.descope.com/.well-known/jwks.json
+  rate_limits:
+    default:
+      requests_per_minute: 60
+
+expose:
+  mcp:
+    tools:
+      - name: load_material
+        description: "Parse & index a slide/page range for retrieval"
+        input_schema:
+          type: object
+          properties:
+            file_id:    { type: string }
+            type:       { type: string, enum: ["pdf","pptx","docx"] }
+            range:      { type: string }
+            local_path: { type: ["string","null"] }
+          required: ["file_id","type","range"]
+        forward: { method: POST, path: /mcp/tools/load_material }
+        scopes: ["materials:read"]
+
+      - name: answer_question
+        description: "Answer using only the indexed range; cite slide/page numbers"
+        input_schema:
+          type: object
+          properties:
+            corpus_id: { type: string }
+            query:     { type: string }
+            top_k:     { type: integer, default: 5 }
+          required: ["corpus_id","query"]
+        forward: { method: POST, path: /mcp/tools/answer_question }
+        scopes: ["materials:read"]
+
+      - name: make_notes
+        description: "Generate structured notes and optional PDF"
+        input_schema:
+          type: object
+          properties:
+            corpus_id:  { type: string }
+            style:      { type: string, enum: ["concise","exam","lecture"], default: "concise" }
+            export_pdf: { type: boolean, default: true }
+          required: ["corpus_id"]
+        forward: { method: POST, path: /mcp/tools/make_notes }
+        scopes: ["notes:write"]
+
+      - name: generate_quiz
+        description: "Create a 10-minute quiz from the indexed range"
+        input_schema:
+          type: object
+          properties:
+            corpus_id: { type: string }
+            duration:  { type: integer, default: 10 }
+            items:     { type: integer, default: 10 }
+            focus:
+              type: array
+              items: { type: string }
+              default: ["definitions","concepts","derivations"]
+          required: ["corpus_id"]
+        forward: { method: POST, path: /mcp/tools/generate_quiz }
+        scopes: ["quiz:write"]
+
+      - name: schedule_quiz
+        description: "Create one-time or spaced events (Calendar or ICS fallback)"
+        input_schema:
+          type: object
+          properties:
+            quiz_id: { type: string }
+            plan:
+              type: object
+              properties:
+                mode:     { type: string, enum: ["once","spaced"] }
+                end_date: { type: ["string","null"] }
+                days:     { type: ["array","null"], items: { type: string } }
+                window:   { type: ["string","null"] }
+              required: ["mode"]
+            title:   { type: string, default: "Pop Quiz" }
+            tz:      { type: string, default: "America/Los_Angeles" }
+            confirm: { type: boolean, default: false }
+          required: ["quiz_id","plan"]
+        forward: { method: POST, path: /mcp/tools/schedule_quiz }
+        scopes: ["calendar:write","quiz:write"]
+
+  http:
+    routes:
+      - path: /health
+        to: /health
+        upstream: http://host.docker.internal:8000
+      - path: /whoami
+        to: /whoami
+        upstream: http://host.docker.internal:8000
+      - path: /downloads/
+        to: /downloads/
+        upstream: http://host.docker.internal:8000
